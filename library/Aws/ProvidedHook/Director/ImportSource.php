@@ -26,6 +26,8 @@ class ImportSource extends ImportSourceHook
                 return $client->getLoadBalancers();
             case 'ec2instance':
                 return $client->getEc2Instances();
+            case 'ssm':
+                return $client->getSsmParameters();
         }
     }
 
@@ -33,7 +35,7 @@ class ImportSource extends ImportSourceHook
     {
         // Compat for old configs, asg used to be the only available type:
         $type = $this->getSetting('object_type', 'asg');
-        if (! in_array($type, array('asg', 'lb', 'ec2instance'))) {
+        if (! in_array($type, array('asg', 'lb', 'ec2instance', 'ssm'))) {
             throw new ConfigurationError(
                 'Got no invalid AWS object type: "%s"',
                 $type
@@ -93,6 +95,13 @@ class ImportSource extends ImportSourceHook
                     'tags.aws:cloudformation:stack-id',
                     'tags.aws:cloudformation:stack-name',
                 );
+            case 'ssm':
+                return array(
+                    'name',
+                    'description',
+                    'type',
+                    'version',
+                );
         }
     }
 
@@ -139,6 +148,7 @@ class ImportSource extends ImportSourceHook
             'asg'         => $form->translate('Auto Scaling Groups'),
             'lb'          => $form->translate('Elastic Load Balancers'),
             'ec2instance' => $form->translate('EC2 Instances'),
+            'ssm' => $form->translate('SSM Parameter Store'),
         );
     }
 }

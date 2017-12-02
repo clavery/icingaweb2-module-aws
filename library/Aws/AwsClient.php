@@ -2,7 +2,7 @@
 
 namespace Icinga\Module\Aws;
 
-use Aws\Common\Aws;
+use Aws\Sdk as AwsSDK;
 use Icinga\Application\Config;
 
 class AwsClient
@@ -20,10 +20,37 @@ class AwsClient
         $this->prepareAwsLibs();
     }
 
+    public function getSsmParameters()
+    {
+        $objects = array();
+        $parameters = array();
+        $client = $this->client()->createSsm();
+
+        do {
+          $res = $client->describeParameters([
+            'MaxResults' => 50
+          ]);
+          $parameters = array_merge($parameters, $res->get('Parameters'));
+        } while(!empty($res->get('NextToken')));
+
+        foreach ($parameters as $entry) {
+
+            $objects[] = $object = $this->extractAttributes($entry, array(
+                'name'              => 'Name',
+                'type'             => 'Type',
+                'version'          => 'Version',
+            ), array('description' => 'Description'));
+
+            $this->extractTags($entry, $object);
+        }
+
+        return $this->sortByName($objects);
+    }
+
     public function getAutoscalingConfig()
     {
         $objects = array();
-        $client = $this->client()->get('AutoScaling');
+        $client = $this->client()->createAutoScaling();
         $res = $client->describeAutoScalingGroups();
 
         foreach ($res->get('AutoScalingGroups') as $entry) {
@@ -48,7 +75,7 @@ class AwsClient
 
     public function getLoadBalancers()
     {
-        $client = $this->client()->get('ElasticLoadBalancing');
+        $client = $this->client()->createElasticLoadBalancing();
         $res = $client->describeLoadBalancers();
         $objects = array();
         foreach ($res->get('LoadBalancerDescriptions') as $entry) {
@@ -81,7 +108,7 @@ class AwsClient
 
     public function getEc2Instances()
     {
-        $client = $this->client()->get('Ec2');
+        $client = $this->client()->createEc2();
         $res = $client->describeInstances();
         $objects = array();
         foreach ($res->get('Reservations') as $reservation) {
@@ -186,6 +213,7 @@ class AwsClient
         $params = array(
             'region'  => $this->region,
             'credentials' => $this->key->getCredentials(),
+            'version' => 'latest'
         );
 
         $config = Config::module('aws');
@@ -199,7 +227,7 @@ class AwsClient
             $params['ssl.certificate_authority'] = $ca;
         }
 
-        $this->client = Aws::factory($params);
+        $this->client = new AwsSDK($params);
     }
 
     protected function prepareAwsLibs()
